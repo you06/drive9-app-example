@@ -1,0 +1,10 @@
+.DS_Store
+.idea/
+.gradle/
+build/
+DerivedData/
+vendor/
+*.xcuserstate
+*.xcuserdata/
+local.properties
+
