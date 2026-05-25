@@ -32,5 +32,10 @@ Clone it locally before opening the examples:
 ./scripts/bootstrap-drive9-sdk.sh
 ```
 
-This creates `vendor/drive9`. You can also set `DRIVE9_REPO=/path/to/drive9`
+This creates `vendor/drive9` and checks out the latest native Swift/Kotlin SDK
+branch (`sdk-ci` by default). You can also set `DRIVE9_REPO=/path/to/drive9`
 when following the platform-specific READMEs.
+
+The current Swift and Kotlin SDKs use native HTTP implementations. These demos
+do not require Rust, UniFFI, generated bindings, shared libraries, `jniLibs`, or
+`DYLD_LIBRARY_PATH`.

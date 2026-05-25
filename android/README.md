@@ -4,19 +4,13 @@ Kotlin Android demo for the Drive9 Kotlin SDK.
 
 ## Setup
 
-1. Clone the SDK source:
+1. Clone the latest native SDK source:
 
 ```bash
 ../scripts/bootstrap-drive9-sdk.sh
 ```
 
-2. Generate Kotlin bindings and the local native library:
-
-```bash
-(cd ../vendor/drive9/clients/drive9-mobile-core && ./scripts/regenerate-bindings.sh)
-```
-
-3. Open `android/` in Android Studio.
+2. Open `android/` in Android Studio.
 
 The Gradle settings include the Kotlin SDK from:
 
@@ -26,10 +20,9 @@ The Gradle settings include the Kotlin SDK from:
 
 You can override this with `DRIVE9_REPO=/path/to/drive9`.
 
-For a real Android device build, package the Drive9 native library for each ABI
-under `app/src/main/jniLibs/<abi>/`. The current Drive9 SDK tree generates the
-Linux JVM smoke-test `.so`; Android ABI packaging is intentionally left to the
-host app build pipeline.
+The Kotlin SDK is a native HTTP implementation. No Rust build, UniFFI
+generation, JNA dependency, native shared library, or `jniLibs` packaging is
+needed.
 
 ## Usage
 

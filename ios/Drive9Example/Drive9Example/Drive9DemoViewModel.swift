@@ -1,8 +1,5 @@
 import Foundation
-
-#if canImport(Drive9Mobile)
 import Drive9Mobile
-#endif
 
 struct Drive9DemoSearchResult: Identifiable {
     let id = UUID()
@@ -59,13 +56,9 @@ final class Drive9DemoViewModel: ObservableObject {
                 if scoped { url.stopAccessingSecurityScopedResource() }
             }
 
-            #if canImport(Drive9Mobile)
             let client = Drive9Client(baseUrl: trimmed(baseURL), apiKey: trimmed(apiKey))
             try await client.uploadFile(localPath: url.path, remotePath: normalizedPath(remotePath))
             setStatus("Uploaded \(url.lastPathComponent) to \(normalizedPath(remotePath))")
-            #else
-            throw DemoError.missingSDK
-            #endif
         } catch {
             setError(error)
         }
@@ -73,16 +66,12 @@ final class Drive9DemoViewModel: ObservableObject {
 
     func search() async {
         do {
-            #if canImport(Drive9Mobile)
             let client = Drive9Client(baseUrl: trimmed(baseURL), apiKey: trimmed(apiKey))
             let response = try await client.grep(query: trimmed(query), pathPrefix: normalizedPath(searchPrefix), limit: 20)
             results = response.map {
                 Drive9DemoSearchResult(path: $0.path, name: $0.name, sizeBytes: $0.sizeBytes, score: $0.score)
             }
             setStatus("Found \(results.count) result\(results.count == 1 ? "" : "s")")
-            #else
-            throw DemoError.missingSDK
-            #endif
         } catch {
             setError(error)
         }
@@ -107,15 +96,3 @@ final class Drive9DemoViewModel: ObservableObject {
         return value.hasPrefix("/") ? value : "/\(value)"
     }
 }
-
-enum DemoError: LocalizedError {
-    case missingSDK
-
-    var errorDescription: String? {
-        switch self {
-        case .missingSDK:
-            return "Drive9Mobile is not linked. Add the local Drive9 Swift package as described in ios/README.md."
-        }
-    }
-}
-

@@ -4,35 +4,25 @@ SwiftUI demo for the Drive9 Swift SDK.
 
 ## Setup
 
-1. Clone the SDK source:
+1. Clone the latest native SDK source:
 
 ```bash
 ../scripts/bootstrap-drive9-sdk.sh
 ```
 
-2. Generate Swift bindings and build the native library:
+2. Open `Drive9Example/Drive9Example.xcodeproj`.
 
-```bash
-(cd ../vendor/drive9/clients/drive9-mobile-core && ./scripts/regenerate-bindings.sh)
-```
-
-3. Open `Drive9Example/Drive9Example.xcodeproj`.
-4. In Xcode, add the local Swift package at:
+The Xcode project already references the local Swift package at:
 
 ```text
-../vendor/drive9/clients/drive9-swift
+../../vendor/drive9/clients/drive9-swift
 ```
 
-5. Link `Drive9Mobile` to the app target.
-6. Ensure the built native library is available to the app. For simulator
-   development, point the run environment at:
+If you use a different checkout, update the local package path in Xcode or set
+up `vendor/drive9` with the bootstrap script.
 
-```text
-DYLD_LIBRARY_PATH=$(SRCROOT)/../../vendor/drive9/clients/drive9-mobile-core/target/release
-```
-
-Production iOS packaging should use a proper XCFramework / binary target. This
-example intentionally stays as a local SDK integration demo.
+The Swift SDK is a native HTTP implementation. No Rust build, UniFFI generation,
+C bridge, shared library, linker flag, or `DYLD_LIBRARY_PATH` is needed.
 
 ## Usage
 

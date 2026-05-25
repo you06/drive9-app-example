@@ -10,6 +10,7 @@
         111111111111111111111111 /* Drive9ExampleApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 211111111111111111111111 /* Drive9ExampleApp.swift */; };
         111111111111111111111112 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 211111111111111111111112 /* ContentView.swift */; };
         111111111111111111111113 /* Drive9DemoViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 211111111111111111111113 /* Drive9DemoViewModel.swift */; };
+        111111111111111111111114 /* Drive9Mobile in Frameworks */ = {isa = PBXBuildFile; productRef = A11111111111111111111112 /* Drive9Mobile */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -25,6 +26,7 @@
             isa = PBXFrameworksBuildPhase;
             buildActionMask = 2147483647;
             files = (
+                111111111111111111111114 /* Drive9Mobile in Frameworks */,
             );
             runOnlyForDeploymentPostprocessing = 0;
         };
@@ -74,6 +76,9 @@
             dependencies = (
             );
             name = Drive9Example;
+            packageProductDependencies = (
+                A11111111111111111111112 /* Drive9Mobile */,
+            );
             productName = Drive9Example;
             productReference = 211111111111111111111110 /* Drive9Example.app */;
             productType = "com.apple.product-type.application";
@@ -102,6 +107,9 @@
                 Base,
             );
             mainGroup = 411111111111111111111111;
+            packageReferences = (
+                A11111111111111111111111 /* XCLocalSwiftPackageReference "../../vendor/drive9/clients/drive9-swift" */,
+            );
             productRefGroup = 411111111111111111111113 /* Products */;
             projectDirPath = "";
             projectRoot = "";
@@ -305,7 +313,21 @@
             defaultConfigurationName = Release;
         };
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+        A11111111111111111111111 /* XCLocalSwiftPackageReference "../../vendor/drive9/clients/drive9-swift" */ = {
+            isa = XCLocalSwiftPackageReference;
+            relativePath = "../../vendor/drive9/clients/drive9-swift";
+        };
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+        A11111111111111111111112 /* Drive9Mobile */ = {
+            isa = XCSwiftPackageProductDependency;
+            package = A11111111111111111111111 /* XCLocalSwiftPackageReference "../../vendor/drive9/clients/drive9-swift" */;
+            productName = Drive9Mobile;
+        };
+/* End XCSwiftPackageProductDependency section */
     };
     rootObject = 711111111111111111111111 /* Project object */;
 }
-
