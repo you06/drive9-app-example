@@ -6,5 +6,5 @@ DerivedData/
 vendor/
 *.xcuserstate
 *.xcuserdata/
+xcuserdata/
 local.properties
-
