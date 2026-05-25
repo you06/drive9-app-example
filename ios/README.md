@@ -24,7 +24,7 @@ up `vendor/drive9` with the bootstrap script.
 The Swift SDK is a native HTTP implementation. No Rust build, UniFFI generation,
 C bridge, shared library, linker flag, or `DYLD_LIBRARY_PATH` is needed.
 
-The SDK package and this example target are configured for iOS 21 or newer.
+The SDK package and this example target are configured for iOS 17 or newer.
 
 ## Usage
 
