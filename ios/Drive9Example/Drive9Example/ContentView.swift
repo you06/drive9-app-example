@@ -78,11 +78,13 @@ private struct MainDemoView: View {
                                 model.startRecording(.upload)
                             }
                         }
+                        .buttonStyle(.bordered)
                         .disabled(model.isRecordingSearch || model.isBusy)
 
                         Button("Upload") {
                             Task { await model.uploadRecording() }
                         }
+                        .buttonStyle(.borderedProminent)
                         .disabled(!model.canUploadRecording)
                     }
                 }
@@ -102,11 +104,13 @@ private struct MainDemoView: View {
                                 model.startRecording(.search)
                             }
                         }
+                        .buttonStyle(.bordered)
                         .disabled(model.isRecordingUpload || model.isBusy)
 
                         Button("Search") {
                             Task { await model.searchRecording() }
                         }
+                        .buttonStyle(.borderedProminent)
                         .disabled(!model.canSearchRecording)
                     }
                 }
@@ -160,6 +164,7 @@ private struct ResultsView: View {
                     Button("Play Audio") {
                         Task { await model.play(result) }
                     }
+                    .buttonStyle(.bordered)
                     .disabled(model.isBusy)
                 }
                 .padding(.vertical, 6)
