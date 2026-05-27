@@ -109,11 +109,11 @@ class MainActivity : ComponentActivity() {
             text = model.uploadRecording?.name ?: "No upload recording yet"
             tag = "upload-name"
         })
-        root.addView(button(if (model.recordingPurpose == RecordingPurpose.Upload) "Stop Upload Recording" else "Record Upload") { toggleRecording(RecordingPurpose.Upload) }.apply {
+        root.addView(button(if (model.recordingPurpose == RecordingPurpose.Upload) "Stop Upload Recording" else "Record Upload Audio") { toggleRecording(RecordingPurpose.Upload) }.apply {
             isEnabled = model.recordingPurpose != RecordingPurpose.Search
             tag = "upload-record-button"
         })
-        root.addView(button("Upload Recording") { uploadRecording() }.apply {
+        root.addView(button("Upload Saved Recording") { uploadRecording() }.apply {
             isEnabled = model.uploadRecording != null && model.recordingPurpose == null
         })
 
@@ -126,7 +126,7 @@ class MainActivity : ComponentActivity() {
             isEnabled = model.recordingPurpose != RecordingPurpose.Upload
             tag = "search-record-button"
         })
-        root.addView(button("Search Recordings") { searchRecording() }.apply {
+        root.addView(button("Search With Saved Query") { searchRecording() }.apply {
             isEnabled = model.searchRecording != null && model.recordingPurpose == null
         })
 
@@ -205,6 +205,7 @@ class MainActivity : ComponentActivity() {
         }
         if (!validateRecordingFile(file)) return
         launchDrive9 {
+            status("Uploading saved recording to $AUDIO_PREFIX/${file.name}...")
             client().uploadFile(file.absolutePath, "$AUDIO_PREFIX/${file.name}")
             status("Uploaded ${file.name} to $AUDIO_PREFIX")
         }
@@ -218,6 +219,7 @@ class MainActivity : ComponentActivity() {
         }
         if (!validateRecordingFile(file)) return
         launchDrive9 {
+            status("Searching $AUDIO_PREFIX with saved query recording...")
             val hits = client().searchByFile(
                 localPath = file.absolutePath,
                 tmpPrefix = QUERY_TMP_PREFIX,

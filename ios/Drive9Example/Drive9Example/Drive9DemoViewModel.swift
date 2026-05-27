@@ -111,6 +111,7 @@ final class Drive9DemoViewModel: NSObject, ObservableObject {
         }
         await runBusy {
             let remotePath = "\(audioPrefix)/\(url.lastPathComponent)"
+            self.setStatus("Uploading saved recording to \(remotePath)...")
             try await self.client().uploadFile(localPath: url.path, remotePath: remotePath)
             self.setStatus("Uploaded recording to \(remotePath)")
         }
@@ -125,6 +126,7 @@ final class Drive9DemoViewModel: NSObject, ObservableObject {
             return
         }
         await runBusy {
+            self.setStatus("Searching \(audioPrefix) with saved query recording...")
             let hits = try await self.client().searchByFile(
                 localPath: url.path,
                 tmpPrefix: queryTmpPrefix,

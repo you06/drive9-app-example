@@ -71,7 +71,7 @@ private struct MainDemoView: View {
                     }
 
                     HStack {
-                        Button(model.isRecordingUpload ? "Stop Recording" : "Record Upload") {
+                        Button(model.isRecordingUpload ? "Stop Upload Recording" : "Record Upload Audio") {
                             if model.isRecordingUpload {
                                 model.stopRecording(.upload)
                             } else {
@@ -81,7 +81,7 @@ private struct MainDemoView: View {
                         .buttonStyle(.bordered)
                         .disabled(model.isRecordingSearch || model.isBusy)
 
-                        Button("Upload") {
+                        Button("Upload Saved Recording") {
                             Task { await model.uploadRecording() }
                         }
                         .buttonStyle(.borderedProminent)
@@ -97,7 +97,7 @@ private struct MainDemoView: View {
                     }
 
                     HStack {
-                        Button(model.isRecordingSearch ? "Stop Recording" : "Record Query") {
+                        Button(model.isRecordingSearch ? "Stop Search Recording" : "Record Search Query") {
                             if model.isRecordingSearch {
                                 model.stopRecording(.search)
                             } else {
@@ -107,7 +107,7 @@ private struct MainDemoView: View {
                         .buttonStyle(.bordered)
                         .disabled(model.isRecordingUpload || model.isBusy)
 
-                        Button("Search") {
+                        Button("Search With Saved Query") {
                             Task { await model.searchRecording() }
                         }
                         .buttonStyle(.borderedProminent)
