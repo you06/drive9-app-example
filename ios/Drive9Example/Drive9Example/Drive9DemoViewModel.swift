@@ -76,10 +76,10 @@ final class Drive9DemoViewModel: NSObject, ObservableObject {
     func startRecording(_ purpose: RecordingPurpose) {
         Task {
             do {
-                try await requestMicrophoneAccess()
-                try startRecorder(for: purpose)
+                try await self.requestMicrophoneAccess()
+                try self.startRecorder(for: purpose)
             } catch {
-                setError(error)
+                self.setError(error)
             }
         }
     }
@@ -111,8 +111,8 @@ final class Drive9DemoViewModel: NSObject, ObservableObject {
         }
         await runBusy {
             let remotePath = "\(audioPrefix)/\(url.lastPathComponent)"
-            try await client().uploadFile(localPath: url.path, remotePath: remotePath)
-            setStatus("Uploaded recording to \(remotePath)")
+            try await self.client().uploadFile(localPath: url.path, remotePath: remotePath)
+            self.setStatus("Uploaded recording to \(remotePath)")
         }
     }
 
@@ -125,7 +125,7 @@ final class Drive9DemoViewModel: NSObject, ObservableObject {
             return
         }
         await runBusy {
-            let hits = try await client().searchByFile(
+            let hits = try await self.client().searchByFile(
                 localPath: url.path,
                 tmpPrefix: queryTmpPrefix,
                 searchPrefix: audioPrefix,
@@ -135,7 +135,7 @@ final class Drive9DemoViewModel: NSObject, ObservableObject {
             )
             var enriched: [Drive9AudioSearchResult] = []
             for hit in hits {
-                let meta = try? await client().statMetadata(path: hit.path)
+                let meta = try? await self.client().statMetadata(path: hit.path)
                 enriched.append(
                     Drive9AudioSearchResult(
                         path: hit.path,
@@ -146,9 +146,9 @@ final class Drive9DemoViewModel: NSObject, ObservableObject {
                     )
                 )
             }
-            results = enriched
-            showResults = true
-            setStatus("Found \(enriched.count) recording\(enriched.count == 1 ? "" : "s")")
+            self.results = enriched
+            self.showResults = true
+            self.setStatus("Found \(enriched.count) recording\(enriched.count == 1 ? "" : "s")")
         }
     }
 
@@ -156,11 +156,11 @@ final class Drive9DemoViewModel: NSObject, ObservableObject {
         await runBusy {
             let localURL = FileManager.default.temporaryDirectory
                 .appendingPathComponent("drive9-play-\(UUID().uuidString)-\(result.name.ifEmpty("audio.m4a"))")
-            try await client().downloadFile(remotePath: result.path, localPath: localURL.path)
-            player = try AVAudioPlayer(contentsOf: localURL)
-            player?.prepareToPlay()
-            player?.play()
-            setStatus("Playing \(result.name.ifEmpty(result.path))")
+            try await self.client().downloadFile(remotePath: result.path, localPath: localURL.path)
+            self.player = try AVAudioPlayer(contentsOf: localURL)
+            self.player?.prepareToPlay()
+            self.player?.play()
+            self.setStatus("Playing \(result.name.ifEmpty(result.path))")
         }
     }
 
