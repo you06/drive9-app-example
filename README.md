@@ -6,7 +6,6 @@ The examples connect to an existing Drive9 space. They only ask for:
 
 - Drive9 base URL, such as `https://example.com`
 - Existing Drive9 API key or scoped token
-- Remote upload path and search prefix
 
 They do not create spaces, issue tokens, or call owner/admin APIs.
 
@@ -17,11 +16,14 @@ They do not create spaces, issue tokens, or call owner/admin APIs.
 
 Both demos support:
 
-- Uploading a local file to Drive9.
-- Semantic search with `grep`, which Drive9 implements as hybrid semantic / full-text / keyword search.
+- Recording audio and uploading it to `/mobile-demo/audio`.
+- Recording an audio query and searching `/mobile-demo/audio` with Drive9's
+  file-based semantic search helper from PR #469.
+- Viewing read-only search results with semantic summaries and playable audio.
 
-New uploads may take a short time to appear in semantic results while Drive9
-indexes the file.
+Drive9 extracts semantic text asynchronously. The search action uploads the
+query recording to a temporary path, waits for semantic text, searches
+`/mobile-demo/audio`, and then shows the result list.
 
 ## SDK Source
 
@@ -32,9 +34,11 @@ Clone it locally before opening the examples:
 ./scripts/bootstrap-drive9-sdk.sh
 ```
 
-This creates `vendor/drive9` and checks out the latest native Swift/Kotlin SDK
-branch (`sdk-ci` by default). You can also set `DRIVE9_REPO=/path/to/drive9`
-when following the platform-specific READMEs.
+This creates `vendor/drive9` and checks out the Drive9 SDK branch that contains
+the file-based semantic search helper (`feat/semantic-search-by-file-sdk` by
+default). After PR #469 is merged, set `DRIVE9_REF=main` if you want to consume
+the merged branch. You can also set `DRIVE9_REPO=/path/to/drive9` when following
+the platform-specific READMEs.
 
 The current Swift and Kotlin SDKs use native HTTP implementations. These demos
 do not require Rust, UniFFI, generated bindings, shared libraries, `jniLibs`, or

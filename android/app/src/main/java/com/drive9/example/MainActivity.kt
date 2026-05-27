@@ -1,8 +1,10 @@
 package com.drive9.example
 
-import android.net.Uri
+import android.Manifest
+import android.content.pm.PackageManager
+import android.media.MediaPlayer
+import android.media.MediaRecorder
 import android.os.Bundle
-import android.provider.OpenableColumns
 import android.text.InputType
 import android.view.View
 import android.view.ViewGroup
@@ -15,112 +17,255 @@ import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.lifecycleScope
 import com.drive9.mobile.Drive9Client
-import com.drive9.mobile.Drive9SearchResult
 import java.io.File
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+
+private const val DEFAULT_SERVER = "https://api.drive9.ai"
+private const val AUDIO_PREFIX = "/mobile-demo/audio"
+private const val QUERY_TMP_PREFIX = "/mobile-demo/tmp-query"
 
 class MainActivity : ComponentActivity() {
     private val model: Drive9ExampleViewModel by viewModels()
 
     private lateinit var baseUrlInput: EditText
     private lateinit var apiKeyInput: EditText
-    private lateinit var remotePathInput: EditText
-    private lateinit var searchPrefixInput: EditText
-    private lateinit var queryInput: EditText
     private lateinit var statusText: TextView
-    private lateinit var resultsText: TextView
     private lateinit var progress: ProgressBar
+    private var recorder: MediaRecorder? = null
+    private var player: MediaPlayer? = null
+    private var pendingRecording: RecordingPurpose? = null
 
-    private val filePicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) {
-            contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            model.selectedUri = uri
-            val name = displayName(uri)
-            status("Selected $name")
-            if (remotePathInput.text.toString() == "/mobile-demo/example.txt") {
-                remotePathInput.setText("/mobile-demo/$name")
+    private val requestRecordPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            val purpose = pendingRecording
+            pendingRecording = null
+            if (granted && purpose != null) {
+                startRecordingNow(purpose)
+                showMainScreen()
+            } else {
+                status("Microphone permission is required")
             }
         }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        buildUi()
+        showConnectionScreen()
     }
 
-    private fun buildUi() {
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(32, 32, 32, 32)
-        }
+    override fun onDestroy() {
+        recorder?.release()
+        player?.release()
+        super.onDestroy()
+    }
 
-        baseUrlInput = input("Base URL", "https://")
+    private fun showConnectionScreen() {
+        val root = verticalRoot()
+        baseUrlInput = input("Drive9 server", DEFAULT_SERVER)
         apiKeyInput = input("Drive9 API key", "").apply {
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
         }
-        remotePathInput = input("Remote upload path", "/mobile-demo/example.txt")
-        searchPrefixInput = input("Search prefix", "/mobile-demo/")
-        queryInput = input("Natural-language search query", "feline sofa")
         statusText = TextView(this)
-        resultsText = TextView(this)
         progress = ProgressBar(this).apply { visibility = View.GONE }
 
-        root.addView(label("Connection"))
+        root.addView(label("Drive9"))
         root.addView(baseUrlInput)
         root.addView(apiKeyInput)
-        root.addView(label("Upload"))
-        root.addView(remotePathInput)
-        root.addView(button("Choose File") { filePicker.launch(arrayOf("*/*")) })
-        root.addView(button("Upload File") { upload() })
-        root.addView(label("Semantic Search"))
-        root.addView(searchPrefixInput)
-        root.addView(queryInput)
-        root.addView(button("Search") { search() })
+        root.addView(button("Continue") {
+            if (apiKeyInput.text.toString().trim().isEmpty()) {
+                status("Drive9 API key is required")
+            } else {
+                model.baseUrl = baseUrlInput.text.toString().trim()
+                model.apiKey = apiKeyInput.text.toString().trim()
+                showMainScreen()
+            }
+        })
         root.addView(progress)
         root.addView(statusText)
-        root.addView(resultsText)
-
         setContentView(ScrollView(this).apply { addView(root) })
-        status("Enter an existing Drive9 endpoint and API key.")
+        status("Enter an existing Drive9 API key.")
     }
 
-    private fun upload() {
-        val uri = model.selectedUri
-        if (uri == null) {
-            status("Choose a file first")
+    private fun showMainScreen() {
+        val root = verticalRoot()
+        statusText = TextView(this)
+        progress = ProgressBar(this).apply { visibility = View.GONE }
+
+        root.addView(label("Upload Recording"))
+        root.addView(TextView(this).apply {
+            text = model.uploadRecording?.name ?: "No upload recording yet"
+            tag = "upload-name"
+        })
+        root.addView(button(if (model.recordingPurpose == RecordingPurpose.Upload) "Stop Upload Recording" else "Record Upload") { toggleRecording(RecordingPurpose.Upload) }.apply {
+            tag = "upload-record-button"
+        })
+        root.addView(button("Upload Recording") { uploadRecording() })
+
+        root.addView(label("Search Recording"))
+        root.addView(TextView(this).apply {
+            text = model.searchRecording?.name ?: "No search recording yet"
+            tag = "search-name"
+        })
+        root.addView(button(if (model.recordingPurpose == RecordingPurpose.Search) "Stop Search Recording" else "Record Search Query") { toggleRecording(RecordingPurpose.Search) }.apply {
+            tag = "search-record-button"
+        })
+        root.addView(button("Search Recordings") { searchRecording() })
+
+        root.addView(progress)
+        root.addView(statusText)
+        setContentView(ScrollView(this).apply { addView(root) })
+        val recording = model.recordingPurpose
+        if (recording == null) {
+            status("Ready. Record audio to upload or search in $AUDIO_PREFIX.")
+        } else {
+            status("Recording ${recording.label}...")
+        }
+    }
+
+    private fun toggleRecording(purpose: RecordingPurpose) {
+        if (model.recordingPurpose == purpose) {
+            stopRecording()
+            showMainScreen()
+            return
+        }
+        if (model.recordingPurpose != null) {
+            status("Stop the current recording first")
+            return
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            startRecordingNow(purpose)
+            showMainScreen()
+        } else {
+            pendingRecording = purpose
+            requestRecordPermission.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    private fun startRecordingNow(purpose: RecordingPurpose) {
+        val file = File(cacheDir, "recording-${System.currentTimeMillis()}.m4a")
+        val mediaRecorder = MediaRecorder()
+        mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC)
+        mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+        mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+        mediaRecorder.setAudioSamplingRate(44_100)
+        mediaRecorder.setAudioChannels(1)
+        mediaRecorder.setOutputFile(file.absolutePath)
+        mediaRecorder.prepare()
+        mediaRecorder.start()
+        recorder = mediaRecorder
+        model.recordingPurpose = purpose
+        when (purpose) {
+            RecordingPurpose.Upload -> model.uploadRecording = file
+            RecordingPurpose.Search -> model.searchRecording = file
+        }
+        status("Recording ${purpose.label}...")
+    }
+
+    private fun stopRecording() {
+        runCatching { recorder?.stop() }
+        recorder?.release()
+        recorder = null
+        val purpose = model.recordingPurpose
+        model.recordingPurpose = null
+        status("${purpose?.label ?: "Recording"} ready")
+    }
+
+    private fun uploadRecording() {
+        val file = model.uploadRecording
+        if (file == null) {
+            status("Record upload audio first")
             return
         }
         launchDrive9 {
-            val localFile = copyToCache(uri)
-            val client = client()
-            client.uploadFile(localFile.absolutePath, normalizedPath(remotePathInput.text.toString()))
-            status("Uploaded ${localFile.name} to ${normalizedPath(remotePathInput.text.toString())}")
+            client().uploadFile(file.absolutePath, "$AUDIO_PREFIX/${file.name}")
+            status("Uploaded ${file.name} to $AUDIO_PREFIX")
         }
     }
 
-    private fun search() {
+    private fun searchRecording() {
+        val file = model.searchRecording
+        if (file == null) {
+            status("Record a search query first")
+            return
+        }
         launchDrive9 {
-            val client = client()
-            val results = client.grep(
-                query = queryInput.text.toString().trim(),
-                pathPrefix = normalizedPath(searchPrefixInput.text.toString()),
+            val hits = client().searchByFile(
+                localPath = file.absolutePath,
+                tmpPrefix = QUERY_TMP_PREFIX,
+                searchPrefix = AUDIO_PREFIX,
                 limit = 20,
             )
-            showResults(results)
-            status("Found ${results.size} result${if (results.size == 1) "" else "s"}")
+            val enriched = hits.map { hit ->
+                val meta = runCatching { client().statMetadata(hit.path) }.getOrNull()
+                AudioResult(
+                    path = hit.path,
+                    name = hit.name,
+                    sizeBytes = hit.sizeBytes,
+                    score = hit.score,
+                    semanticText = meta?.semanticText?.trim().orEmpty(),
+                )
+            }
+            showResultsScreen(enriched)
         }
     }
 
-    private fun launchDrive9(block: suspend Drive9ExampleViewModel.() -> Unit) {
+    private fun showResultsScreen(results: List<AudioResult>) {
+        val root = verticalRoot()
+        statusText = TextView(this)
+        progress = ProgressBar(this).apply { visibility = View.GONE }
+
+        root.addView(label("Search Results"))
+        if (results.isEmpty()) {
+            root.addView(TextView(this).apply { text = "No recordings found." })
+        }
+        results.forEach { result ->
+            root.addView(TextView(this).apply {
+                text = buildString {
+                    append(result.name.ifBlank { result.path })
+                    append("\n")
+                    append(result.semanticText.ifBlank { "No semantic summary is available." })
+                    append("\n")
+                    append(result.sizeBytes)
+                    append(" bytes")
+                    if (result.score != null) append(" · score ${"%.4f".format(result.score)}")
+                }
+                setPadding(0, 16, 0, 8)
+            })
+            root.addView(button("Play Audio") { play(result) })
+        }
+        root.addView(button("Back") { showMainScreen() })
+        root.addView(progress)
+        root.addView(statusText)
+        setContentView(ScrollView(this).apply { addView(root) })
+        status("Found ${results.size} recording${if (results.size == 1) "" else "s"}")
+    }
+
+    private fun play(result: AudioResult) {
+        launchDrive9 {
+            val local = File(cacheDir, "drive9-play-${System.nanoTime()}-${result.name.ifBlank { "audio.m4a" }}")
+            client().downloadFile(result.path, local.absolutePath)
+            player?.release()
+            player = MediaPlayer().apply {
+                setDataSource(local.absolutePath)
+                setOnCompletionListener {
+                    it.release()
+                    if (player === it) player = null
+                }
+                prepare()
+                start()
+            }
+            status("Playing ${result.name.ifBlank { result.path }}")
+        }
+    }
+
+    private fun launchDrive9(block: suspend () -> Unit) {
         progress.visibility = View.VISIBLE
         lifecycleScope.launch {
             try {
-                model.block()
+                block()
             } catch (e: Throwable) {
                 status(e.message ?: e.toString())
             } finally {
@@ -130,49 +275,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun client(): Drive9Client =
-        Drive9Client(
-            baseUrl = baseUrlInput.text.toString().trim(),
-            apiKey = apiKeyInput.text.toString().trim(),
-        )
+        Drive9Client(baseUrl = model.baseUrl, apiKey = model.apiKey)
 
-    private suspend fun copyToCache(uri: Uri): File = withContext(Dispatchers.IO) {
-        val name = displayName(uri).ifBlank { "drive9-upload.bin" }
-        val file = File(cacheDir, name)
-        contentResolver.openInputStream(uri).use { input ->
-            requireNotNull(input) { "Cannot open selected file" }
-            file.outputStream().use { output -> input.copyTo(output) }
+    private fun verticalRoot(): LinearLayout =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(32, 32, 32, 32)
         }
-        file
-    }
-
-    private fun showResults(results: List<Drive9SearchResult>) {
-        resultsText.text = results.joinToString(separator = "\n\n") {
-            buildString {
-                append(it.path)
-                append("\n")
-                append(it.name)
-                append(" · ")
-                append(it.sizeBytes)
-                append(" bytes")
-                if (it.score != null) append(" · score ${"%.4f".format(it.score)}")
-            }
-        }
-    }
-
-    private fun displayName(uri: Uri): String {
-        contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-            val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-            if (index >= 0 && cursor.moveToFirst()) {
-                return cursor.getString(index)
-            }
-        }
-        return uri.lastPathSegment ?: "drive9-upload.bin"
-    }
-
-    private fun normalizedPath(path: String): String {
-        val trimmed = path.trim()
-        return if (trimmed.startsWith("/")) trimmed else "/$trimmed"
-    }
 
     private fun input(hint: String, value: String): EditText =
         EditText(this).apply {
@@ -203,6 +312,23 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+enum class RecordingPurpose(val label: String) {
+    Upload("upload audio"),
+    Search("search query"),
+}
+
+private data class AudioResult(
+    val path: String,
+    val name: String,
+    val sizeBytes: Long,
+    val score: Double?,
+    val semanticText: String,
+)
+
 class Drive9ExampleViewModel : ViewModel() {
-    var selectedUri: Uri? = null
+    var baseUrl: String = DEFAULT_SERVER
+    var apiKey: String = ""
+    var uploadRecording: File? = null
+    var searchRecording: File? = null
+    var recordingPurpose: RecordingPurpose? = null
 }

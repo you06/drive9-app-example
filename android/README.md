@@ -26,8 +26,18 @@ needed.
 
 ## Usage
 
-Enter the Drive9 base URL and an existing Drive9 API key/token. Choose a local
-document through Android's file picker, upload it to `/mobile-demo/`, then run a
-natural-language search. The search button uses `grep`, which Drive9 serves as
-semantic / full-text / keyword hybrid search. New uploads may need a short
-indexing delay before they appear in semantic results.
+Enter the Drive9 base URL and an existing Drive9 API key/token. The default
+server is `https://api.drive9.ai`.
+
+The main screen has two workflows:
+
+- Record audio and upload it to `/mobile-demo/audio`.
+- Record an audio query and search `/mobile-demo/audio` with the Drive9
+  `searchByFile` helper from PR #469.
+
+Search results open in a read-only list. Each result shows the semantic summary
+Drive9 extracted for that recording and includes a play button that downloads
+and plays the matching audio file.
+
+Drive9 extracts semantic text asynchronously, so search may wait up to the SDK
+timeout for the query recording to become searchable.

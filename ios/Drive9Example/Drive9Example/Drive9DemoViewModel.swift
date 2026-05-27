@@ -1,80 +1,204 @@
+import AVFoundation
 import Foundation
 import Drive9Mobile
 
-struct Drive9DemoSearchResult: Identifiable {
+private let defaultServer = "https://api.drive9.ai"
+private let audioPrefix = "/mobile-demo/audio"
+private let queryTmpPrefix = "/mobile-demo/tmp-query"
+
+struct Drive9AudioSearchResult: Identifiable {
     let id = UUID()
     let path: String
     let name: String
     let sizeBytes: Int64
     let score: Double?
+    let semanticText: String
+}
+
+enum RecordingPurpose {
+    case upload
+    case search
 }
 
 @MainActor
-final class Drive9DemoViewModel: ObservableObject {
-    @Published var baseURL = "https://"
+final class Drive9DemoViewModel: NSObject, ObservableObject {
+    @Published var baseURL = defaultServer
     @Published var apiKey = ""
-    @Published var remotePath = "/mobile-demo/example.txt"
-    @Published var searchPrefix = "/mobile-demo/"
-    @Published var query = "feline sofa"
-    @Published var selectedFileURL: URL?
-    @Published var selectedFileName: String?
-    @Published var status = "Enter an existing Drive9 endpoint and API key."
+    @Published var isConnected = false
+    @Published var status = "Enter an existing Drive9 API key."
     @Published var isError = false
-    @Published var results: [Drive9DemoSearchResult] = []
+    @Published var isBusy = false
+    @Published var uploadRecordingURL: URL?
+    @Published var uploadRecordingName: String?
+    @Published var searchRecordingURL: URL?
+    @Published var searchRecordingName: String?
+    @Published var isRecordingUpload = false
+    @Published var isRecordingSearch = false
+    @Published var results: [Drive9AudioSearchResult] = []
+    @Published var showResults = false
 
-    var canUpload: Bool {
-        hasConnection && selectedFileURL != nil && !remotePath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    private var recorder: AVAudioRecorder?
+    private var player: AVAudioPlayer?
+
+    var canConnect: Bool {
+        !baseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    var canSearch: Bool {
-        hasConnection && !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    var canUploadRecording: Bool {
+        isConnected && uploadRecordingURL != nil && !isRecordingUpload && !isBusy
     }
 
-    private var hasConnection: Bool {
-        baseURL.hasPrefix("http") && !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    var canSearchRecording: Bool {
+        isConnected && searchRecordingURL != nil && !isRecordingSearch && !isBusy
     }
 
-    func handleFileImport(_ result: Result<[URL], Error>) {
-        do {
-            guard let url = try result.get().first else { return }
-            selectedFileURL = url
-            selectedFileName = url.lastPathComponent
-            if remotePath == "/mobile-demo/example.txt" {
-                remotePath = "/mobile-demo/\(url.lastPathComponent)"
+    func connect() {
+        guard canConnect else {
+            setErrorMessage("Drive9 API key is required.")
+            return
+        }
+        isConnected = true
+        setStatus("Connected to \(trimmed(baseURL))")
+    }
+
+    func startRecording(_ purpose: RecordingPurpose) {
+        Task {
+            do {
+                try await requestMicrophoneAccess()
+                try startRecorder(for: purpose)
+            } catch {
+                setError(error)
             }
-            setStatus("Selected \(url.lastPathComponent)")
+        }
+    }
+
+    func stopRecording(_ purpose: RecordingPurpose) {
+        recorder?.stop()
+        recorder = nil
+        switch purpose {
+        case .upload:
+            isRecordingUpload = false
+            if let url = uploadRecordingURL {
+                setStatus("Upload recording ready: \(url.lastPathComponent)")
+            }
+        case .search:
+            isRecordingSearch = false
+            if let url = searchRecordingURL {
+                setStatus("Search recording ready: \(url.lastPathComponent)")
+            }
+        }
+    }
+
+    func uploadRecording() async {
+        guard let url = uploadRecordingURL else { return }
+        await runBusy {
+            let remotePath = "\(audioPrefix)/\(url.lastPathComponent)"
+            try await client().uploadFile(localPath: url.path, remotePath: remotePath)
+            setStatus("Uploaded recording to \(remotePath)")
+        }
+    }
+
+    func searchRecording() async {
+        guard let url = searchRecordingURL else { return }
+        await runBusy {
+            let hits = try await client().searchByFile(
+                localPath: url.path,
+                tmpPrefix: queryTmpPrefix,
+                searchPrefix: audioPrefix,
+                limit: 20,
+                timeoutSeconds: 60,
+                pollIntervalSeconds: 1
+            )
+            var enriched: [Drive9AudioSearchResult] = []
+            for hit in hits {
+                let meta = try? await client().statMetadata(path: hit.path)
+                enriched.append(
+                    Drive9AudioSearchResult(
+                        path: hit.path,
+                        name: hit.name,
+                        sizeBytes: hit.sizeBytes,
+                        score: hit.score,
+                        semanticText: meta?.semanticText.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                    )
+                )
+            }
+            results = enriched
+            showResults = true
+            setStatus("Found \(enriched.count) recording\(enriched.count == 1 ? "" : "s")")
+        }
+    }
+
+    func play(_ result: Drive9AudioSearchResult) async {
+        await runBusy {
+            let localURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("drive9-play-\(UUID().uuidString)-\(result.name.ifEmpty("audio.m4a"))")
+            try await client().downloadFile(remotePath: result.path, localPath: localURL.path)
+            player = try AVAudioPlayer(contentsOf: localURL)
+            player?.prepareToPlay()
+            player?.play()
+            setStatus("Playing \(result.name.ifEmpty(result.path))")
+        }
+    }
+
+    private func startRecorder(for purpose: RecordingPurpose) throws {
+        if isRecordingUpload || isRecordingSearch {
+            throw Drive9DemoError.message("Stop the current recording first.")
+        }
+
+        let session = AVAudioSession.sharedInstance()
+        try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker])
+        try session.setActive(true)
+
+        let name = "recording-\(Int(Date().timeIntervalSince1970)).m4a"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
+        let settings: [String: Any] = [
+            AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
+            AVSampleRateKey: 44_100,
+            AVNumberOfChannelsKey: 1,
+            AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue,
+        ]
+        recorder = try AVAudioRecorder(url: url, settings: settings)
+        recorder?.record()
+
+        switch purpose {
+        case .upload:
+            uploadRecordingURL = url
+            uploadRecordingName = name
+            isRecordingUpload = true
+            setStatus("Recording upload audio...")
+        case .search:
+            searchRecordingURL = url
+            searchRecordingName = name
+            isRecordingSearch = true
+            setStatus("Recording search query...")
+        }
+    }
+
+    private func requestMicrophoneAccess() async throws {
+        try await withCheckedThrowingContinuation { continuation in
+            AVAudioSession.sharedInstance().requestRecordPermission { allowed in
+                if allowed {
+                    continuation.resume(returning: ())
+                } else {
+                    continuation.resume(throwing: Drive9DemoError.message("Microphone permission is required."))
+                }
+            }
+        }
+    }
+
+    private func runBusy(_ action: @escaping () async throws -> Void) async {
+        isBusy = true
+        defer { isBusy = false }
+        do {
+            try await action()
         } catch {
             setError(error)
         }
     }
 
-    func uploadSelectedFile() async {
-        guard let url = selectedFileURL else { return }
-        do {
-            let scoped = url.startAccessingSecurityScopedResource()
-            defer {
-                if scoped { url.stopAccessingSecurityScopedResource() }
-            }
-
-            let client = Drive9Client(baseUrl: trimmed(baseURL), apiKey: trimmed(apiKey))
-            try await client.uploadFile(localPath: url.path, remotePath: normalizedPath(remotePath))
-            setStatus("Uploaded \(url.lastPathComponent) to \(normalizedPath(remotePath))")
-        } catch {
-            setError(error)
-        }
-    }
-
-    func search() async {
-        do {
-            let client = Drive9Client(baseUrl: trimmed(baseURL), apiKey: trimmed(apiKey))
-            let response = try await client.grep(query: trimmed(query), pathPrefix: normalizedPath(searchPrefix), limit: 20)
-            results = response.map {
-                Drive9DemoSearchResult(path: $0.path, name: $0.name, sizeBytes: $0.sizeBytes, score: $0.score)
-            }
-            setStatus("Found \(results.count) result\(results.count == 1 ? "" : "s")")
-        } catch {
-            setError(error)
-        }
+    private func client() -> Drive9Client {
+        Drive9Client(baseUrl: trimmed(baseURL), apiKey: trimmed(apiKey))
     }
 
     private func setStatus(_ message: String) {
@@ -83,16 +207,32 @@ final class Drive9DemoViewModel: ObservableObject {
     }
 
     private func setError(_ error: Error) {
+        setErrorMessage(error.localizedDescription)
+    }
+
+    private func setErrorMessage(_ message: String) {
         isError = true
-        status = error.localizedDescription
+        status = message
     }
 
     private func trimmed(_ value: String) -> String {
         value.trimmingCharacters(in: .whitespacesAndNewlines)
     }
+}
 
-    private func normalizedPath(_ path: String) -> String {
-        let value = trimmed(path)
-        return value.hasPrefix("/") ? value : "/\(value)"
+enum Drive9DemoError: LocalizedError {
+    case message(String)
+
+    var errorDescription: String? {
+        switch self {
+        case let .message(value):
+            return value
+        }
+    }
+}
+
+private extension String {
+    func ifEmpty(_ fallback: String) -> String {
+        isEmpty ? fallback : self
     }
 }

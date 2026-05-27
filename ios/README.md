@@ -28,8 +28,18 @@ The SDK package and this example target are configured for iOS 17 or newer.
 
 ## Usage
 
-Enter the Drive9 base URL and an existing Drive9 API key/token, pick a local
-file, upload it to `/mobile-demo/`, then search with a natural-language query.
-The search button uses `grep`, which Drive9 serves as semantic / full-text /
-keyword hybrid search. New uploads may need a short indexing delay before they
-appear in semantic results.
+Enter the Drive9 base URL and an existing Drive9 API key/token. The default
+server is `https://api.drive9.ai`.
+
+The main screen has two workflows:
+
+- Record audio and upload it to `/mobile-demo/audio`.
+- Record an audio query and search `/mobile-demo/audio` with the Drive9
+  `searchByFile` helper from PR #469.
+
+Search results open in a read-only list. Each result shows the semantic summary
+Drive9 extracted for that recording and includes a play button that downloads
+and plays the matching audio file.
+
+Drive9 extracts semantic text asynchronously, so search may wait up to the SDK
+timeout for the query recording to become searchable.
