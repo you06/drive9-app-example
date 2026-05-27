@@ -27,6 +27,7 @@ import kotlinx.coroutines.launch
 private const val DEFAULT_SERVER = "https://api.drive9.ai"
 private const val AUDIO_PREFIX = "/mobile-demo/audio"
 private const val QUERY_TMP_PREFIX = "/mobile-demo/tmp-query"
+private const val MIN_RECORDING_BYTES = 1024L
 
 class MainActivity : ComponentActivity() {
     private val model: Drive9ExampleViewModel by viewModels()
@@ -93,6 +94,15 @@ class MainActivity : ComponentActivity() {
         val root = verticalRoot()
         statusText = TextView(this)
         progress = ProgressBar(this).apply { visibility = View.GONE }
+        val recording = model.recordingPurpose
+
+        if (recording != null) {
+            root.addView(label("Recording"))
+            root.addView(TextView(this).apply {
+                text = "Recording ${recording.label}... tap Stop to finish."
+                setTextColor(0xffb00020.toInt())
+            })
+        }
 
         root.addView(label("Upload Recording"))
         root.addView(TextView(this).apply {
@@ -100,9 +110,12 @@ class MainActivity : ComponentActivity() {
             tag = "upload-name"
         })
         root.addView(button(if (model.recordingPurpose == RecordingPurpose.Upload) "Stop Upload Recording" else "Record Upload") { toggleRecording(RecordingPurpose.Upload) }.apply {
+            isEnabled = model.recordingPurpose != RecordingPurpose.Search
             tag = "upload-record-button"
         })
-        root.addView(button("Upload Recording") { uploadRecording() })
+        root.addView(button("Upload Recording") { uploadRecording() }.apply {
+            isEnabled = model.uploadRecording != null && model.recordingPurpose == null
+        })
 
         root.addView(label("Search Recording"))
         root.addView(TextView(this).apply {
@@ -110,18 +123,20 @@ class MainActivity : ComponentActivity() {
             tag = "search-name"
         })
         root.addView(button(if (model.recordingPurpose == RecordingPurpose.Search) "Stop Search Recording" else "Record Search Query") { toggleRecording(RecordingPurpose.Search) }.apply {
+            isEnabled = model.recordingPurpose != RecordingPurpose.Upload
             tag = "search-record-button"
         })
-        root.addView(button("Search Recordings") { searchRecording() })
+        root.addView(button("Search Recordings") { searchRecording() }.apply {
+            isEnabled = model.searchRecording != null && model.recordingPurpose == null
+        })
 
         root.addView(progress)
         root.addView(statusText)
         setContentView(ScrollView(this).apply { addView(root) })
-        val recording = model.recordingPurpose
         if (recording == null) {
             status("Ready. Record audio to upload or search in $AUDIO_PREFIX.")
         } else {
-            status("Recording ${recording.label}...")
+            status("Recording ${recording.label}... tap Stop to finish.")
         }
     }
 
@@ -170,7 +185,16 @@ class MainActivity : ComponentActivity() {
         recorder = null
         val purpose = model.recordingPurpose
         model.recordingPurpose = null
-        status("${purpose?.label ?: "Recording"} ready")
+        val file = when (purpose) {
+            RecordingPurpose.Upload -> model.uploadRecording
+            RecordingPurpose.Search -> model.searchRecording
+            null -> null
+        }
+        if (file != null && file.length() < MIN_RECORDING_BYTES) {
+            status("${purpose.label} is only ${file.length()} bytes. Record for a few seconds and try again.")
+        } else {
+            status("${purpose?.label ?: "Recording"} ready${file?.let { " (${it.length()} bytes)" } ?: ""}")
+        }
     }
 
     private fun uploadRecording() {
@@ -179,6 +203,7 @@ class MainActivity : ComponentActivity() {
             status("Record upload audio first")
             return
         }
+        if (!validateRecordingFile(file)) return
         launchDrive9 {
             client().uploadFile(file.absolutePath, "$AUDIO_PREFIX/${file.name}")
             status("Uploaded ${file.name} to $AUDIO_PREFIX")
@@ -191,6 +216,7 @@ class MainActivity : ComponentActivity() {
             status("Record a search query first")
             return
         }
+        if (!validateRecordingFile(file)) return
         launchDrive9 {
             val hits = client().searchByFile(
                 localPath = file.absolutePath,
@@ -259,6 +285,15 @@ class MainActivity : ComponentActivity() {
             }
             status("Playing ${result.name.ifBlank { result.path }}")
         }
+    }
+
+    private fun validateRecordingFile(file: File): Boolean {
+        val size = file.length()
+        if (size < MIN_RECORDING_BYTES) {
+            status("Recording file is only $size bytes. Record for a few seconds and try again.")
+            return false
+        }
+        return true
     }
 
     private fun launchDrive9(block: suspend () -> Unit) {

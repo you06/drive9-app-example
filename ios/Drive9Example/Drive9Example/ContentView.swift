@@ -53,6 +53,16 @@ private struct MainDemoView: View {
     var body: some View {
         NavigationStack {
             Form {
+                if model.isRecording {
+                    Section("Recording") {
+                        HStack(spacing: 12) {
+                            ProgressView()
+                            Text(model.recordingStatusText)
+                                .foregroundStyle(.red)
+                        }
+                    }
+                }
+
                 Section("Upload Recording") {
                     if let name = model.uploadRecordingName {
                         Text(name)
@@ -68,6 +78,7 @@ private struct MainDemoView: View {
                                 model.startRecording(.upload)
                             }
                         }
+                        .disabled(model.isRecordingSearch || model.isBusy)
 
                         Button("Upload") {
                             Task { await model.uploadRecording() }
@@ -91,6 +102,7 @@ private struct MainDemoView: View {
                                 model.startRecording(.search)
                             }
                         }
+                        .disabled(model.isRecordingUpload || model.isBusy)
 
                         Button("Search") {
                             Task { await model.searchRecording() }

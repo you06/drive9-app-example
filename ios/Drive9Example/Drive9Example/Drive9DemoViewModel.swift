@@ -5,6 +5,7 @@ import Drive9Mobile
 private let defaultServer = "https://api.drive9.ai"
 private let audioPrefix = "/mobile-demo/audio"
 private let queryTmpPrefix = "/mobile-demo/tmp-query"
+private let minimumRecordingBytes: UInt64 = 1024
 
 struct Drive9AudioSearchResult: Identifiable {
     let id = UUID()
@@ -46,11 +47,21 @@ final class Drive9DemoViewModel: NSObject, ObservableObject {
     }
 
     var canUploadRecording: Bool {
-        isConnected && uploadRecordingURL != nil && !isRecordingUpload && !isBusy
+        isConnected && uploadRecordingURL != nil && !isRecordingUpload && !isRecordingSearch && !isBusy
     }
 
     var canSearchRecording: Bool {
-        isConnected && searchRecordingURL != nil && !isRecordingSearch && !isBusy
+        isConnected && searchRecordingURL != nil && !isRecordingUpload && !isRecordingSearch && !isBusy
+    }
+
+    var isRecording: Bool {
+        isRecordingUpload || isRecordingSearch
+    }
+
+    var recordingStatusText: String {
+        if isRecordingUpload { return "Recording upload audio... tap Stop Recording when finished." }
+        if isRecordingSearch { return "Recording search query... tap Stop Recording when finished." }
+        return ""
     }
 
     func connect() {
@@ -80,18 +91,24 @@ final class Drive9DemoViewModel: NSObject, ObservableObject {
         case .upload:
             isRecordingUpload = false
             if let url = uploadRecordingURL {
-                setStatus("Upload recording ready: \(url.lastPathComponent)")
+                setRecordingReadyStatus(url, label: "Upload recording")
             }
         case .search:
             isRecordingSearch = false
             if let url = searchRecordingURL {
-                setStatus("Search recording ready: \(url.lastPathComponent)")
+                setRecordingReadyStatus(url, label: "Search recording")
             }
         }
     }
 
     func uploadRecording() async {
         guard let url = uploadRecordingURL else { return }
+        do {
+            try validateRecordingFile(url)
+        } catch {
+            setError(error)
+            return
+        }
         await runBusy {
             let remotePath = "\(audioPrefix)/\(url.lastPathComponent)"
             try await client().uploadFile(localPath: url.path, remotePath: remotePath)
@@ -101,6 +118,12 @@ final class Drive9DemoViewModel: NSObject, ObservableObject {
 
     func searchRecording() async {
         guard let url = searchRecordingURL else { return }
+        do {
+            try validateRecordingFile(url)
+        } catch {
+            setError(error)
+            return
+        }
         await runBusy {
             let hits = try await client().searchByFile(
                 localPath: url.path,
@@ -158,8 +181,14 @@ final class Drive9DemoViewModel: NSObject, ObservableObject {
             AVNumberOfChannelsKey: 1,
             AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue,
         ]
-        recorder = try AVAudioRecorder(url: url, settings: settings)
-        recorder?.record()
+        let audioRecorder = try AVAudioRecorder(url: url, settings: settings)
+        guard audioRecorder.prepareToRecord() else {
+            throw Drive9DemoError.message("Failed to prepare audio recorder.")
+        }
+        guard audioRecorder.record() else {
+            throw Drive9DemoError.message("Failed to start audio recorder.")
+        }
+        recorder = audioRecorder
 
         switch purpose {
         case .upload:
@@ -184,6 +213,31 @@ final class Drive9DemoViewModel: NSObject, ObservableObject {
                     continuation.resume(throwing: Drive9DemoError.message("Microphone permission is required."))
                 }
             }
+        }
+    }
+
+    private func validateRecordingFile(_ url: URL) throws {
+        try validateRecordingSize(try recordingFileSize(url))
+    }
+
+    private func setRecordingReadyStatus(_ url: URL, label: String) {
+        do {
+            let size = try recordingFileSize(url)
+            try validateRecordingSize(size)
+            setStatus("\(label) ready: \(url.lastPathComponent) (\(ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file)))")
+        } catch {
+            setError(error)
+        }
+    }
+
+    private func recordingFileSize(_ url: URL) throws -> UInt64 {
+        let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
+        return (attrs[.size] as? NSNumber)?.uint64Value ?? 0
+    }
+
+    private func validateRecordingSize(_ size: UInt64) throws {
+        if size < minimumRecordingBytes {
+            throw Drive9DemoError.message("Recording file is only \(size) bytes. Record for a few seconds and try again.")
         }
     }
 
