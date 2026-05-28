@@ -18,15 +18,17 @@ struct ContentView: View {
 
 private struct TopBar: View {
     let title: String
+    let topInset: CGFloat
     let onBack: (() -> Void)?
 
-    init(title: String, onBack: (() -> Void)? = nil) {
+    init(title: String, topInset: CGFloat, onBack: (() -> Void)? = nil) {
         self.title = title
+        self.topInset = topInset
         self.onBack = onBack
     }
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .bottom) {
             HStack {
                 if let onBack {
                     Button(action: onBack) {
@@ -40,16 +42,41 @@ private struct TopBar: View {
                 Spacer()
             }
             .padding(.horizontal, 12)
+            .padding(.bottom, 10)
 
             Text(title)
                 .font(.headline)
+                .padding(.bottom, 10)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 44)
+        .frame(height: topInset + 36)
         .background(Color(.systemBackground))
         .overlay(alignment: .bottom) {
             Divider()
         }
+    }
+}
+
+private struct ScreenLayout<Content: View>: View {
+    let title: String
+    let onBack: (() -> Void)?
+    @ViewBuilder let content: (CGFloat) -> Content
+
+    init(title: String, onBack: (() -> Void)? = nil, @ViewBuilder content: @escaping (CGFloat) -> Content) {
+        self.title = title
+        self.onBack = onBack
+        self.content = content
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            VStack(spacing: 0) {
+                TopBar(title: title, topInset: proxy.safeAreaInsets.top, onBack: onBack)
+                content(proxy.safeAreaInsets.bottom)
+            }
+        }
+        .ignoresSafeArea()
+        .background(Color(.systemBackground))
     }
 }
 
@@ -71,8 +98,7 @@ private struct ConnectionView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            TopBar(title: "Drive9")
+        ScreenLayout(title: "Drive9") { _ in
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     CardSection(title: "Drive9") {
@@ -119,10 +145,10 @@ private struct ConnectionView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 12)
+                .padding(.bottom, 12)
             }
             .scrollDismissesKeyboard(.interactively)
         }
-        .background(Color(.systemBackground).ignoresSafeArea(edges: .bottom))
     }
 }
 
@@ -130,8 +156,7 @@ private struct MainDemoView: View {
     @ObservedObject var model: Drive9DemoViewModel
 
     var body: some View {
-        VStack(spacing: 0) {
-            TopBar(title: "Drive9 Audio")
+        ScreenLayout(title: "Drive9 Audio") { _ in
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     if model.isRecording {
@@ -222,10 +247,10 @@ private struct MainDemoView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 12)
+                .padding(.bottom, 12)
             }
             .scrollDismissesKeyboard(.interactively)
         }
-        .background(Color(.systemBackground).ignoresSafeArea(edges: .bottom))
     }
 }
 
@@ -233,10 +258,7 @@ private struct ResultsView: View {
     @ObservedObject var model: Drive9DemoViewModel
 
     var body: some View {
-        VStack(spacing: 0) {
-            TopBar(title: "Results") {
-                model.showResults = false
-            }
+        ScreenLayout(title: "Results", onBack: { model.showResults = false }) { _ in
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     if model.results.isEmpty {
@@ -275,10 +297,9 @@ private struct ResultsView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 12)
-                .padding(.bottom, 16)
+                .padding(.bottom, 12)
             }
         }
-        .background(Color(.systemBackground).ignoresSafeArea(edges: .bottom))
     }
 }
 
