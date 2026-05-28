@@ -16,24 +16,56 @@ struct ContentView: View {
 
 private struct ConnectionView: View {
     @ObservedObject var model: Drive9DemoViewModel
+    @State private var serverInput: String
+    @State private var keyInput: String
+    @State private var showKey = false
+
+    init(model: Drive9DemoViewModel) {
+        self.model = model
+        _serverInput = State(initialValue: model.baseURL)
+        _keyInput = State(initialValue: model.apiKey)
+    }
+
+    private var canContinue: Bool {
+        !serverInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !keyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section("Drive9") {
-                    TextField("Server", text: $model.baseURL)
+                    TextField("Server", text: $serverInput)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .keyboardType(.URL)
+                        .textContentType(.URL)
 
-                    SecureField("API key", text: $model.apiKey)
+                    HStack {
+                        Group {
+                            if showKey {
+                                TextField("API key", text: $keyInput)
+                            } else {
+                                SecureField("API key", text: $keyInput)
+                            }
+                        }
+                        .textContentType(.oneTimeCode)
+                        .keyboardType(.asciiCapable)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
 
+                        Button(showKey ? "Hide" : "Show") {
+                            showKey.toggle()
+                        }
+                        .buttonStyle(.bordered)
+                    }
+
                     Button("Continue") {
+                        model.baseURL = serverInput
+                        model.apiKey = keyInput
                         model.connect()
                     }
-                    .disabled(!model.canConnect)
+                    .disabled(!canContinue)
                 }
 
                 Section {
