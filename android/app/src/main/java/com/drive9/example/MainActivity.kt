@@ -288,17 +288,15 @@ class MainActivity : ComponentActivity() {
         launchDrive9 {
             status("Searching $AUDIO_PREFIX for \"$query\"...")
             val hits = client().grep(query, AUDIO_PREFIX, 20)
-            val enriched = hits.map { hit ->
-                val meta = runCatching { client().statMetadata(hit.path) }.getOrNull()
+            val results = hits.map { hit ->
                 AudioResult(
                     path = hit.path,
                     name = hit.name,
                     sizeBytes = hit.sizeBytes,
                     score = hit.score,
-                    semanticText = meta?.semanticText?.trim().orEmpty(),
                 )
             }
-            showResultsScreen(enriched, query)
+            showResultsScreen(results, query)
         }
     }
 
@@ -320,7 +318,7 @@ class MainActivity : ComponentActivity() {
                 text = buildString {
                     append(result.name.ifBlank { result.path })
                     append("\n")
-                    append(result.semanticText.ifBlank { "No semantic summary is available." })
+                    append(result.path)
                     append("\n")
                     append(result.sizeBytes)
                     append(" bytes")
@@ -420,7 +418,6 @@ private data class AudioResult(
     val name: String,
     val sizeBytes: Long,
     val score: Double?,
-    val semanticText: String,
 )
 
 class Drive9ExampleViewModel : ViewModel() {

@@ -33,13 +33,15 @@ The main screen has two workflows:
 
 - Record audio and upload it to `/mobile-demo/audio`.
 - Pick a language (中文 / English / 日本語), speak a search query, and search
-  `/mobile-demo/audio` with the Drive9 `grep` helper. The transcript comes
-  from the device's `RecognizerIntent`, so the query audio never leaves the
-  phone and the search returns as soon as the recognizer finishes.
+  `/mobile-demo/audio`. Transcription comes from the system speech
+  recognizer launched via `RecognizerIntent`. The transcribed query is sent
+  to the existing Drive9 `grep` endpoint.
 
-Search results open in a read-only list. Each result shows the semantic summary
-Drive9 extracted for that recording and includes a play button that downloads
-and plays the matching audio file.
+The transcribed query is shown in an editable text field so you can fix any
+recognition mistakes before tapping Search Recordings.
 
-Drive9 still extracts semantic text asynchronously for uploaded recordings, so
-a freshly uploaded clip becomes searchable after the backend processes it.
+Search results open in a read-only list with name, path, size, and match score,
+plus a play button that downloads and plays the matching audio file.
+
+Drive9 indexes uploaded recordings asynchronously on the backend, so a freshly
+uploaded clip becomes searchable after the server finishes processing it.

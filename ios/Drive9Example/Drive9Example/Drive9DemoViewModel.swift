@@ -13,7 +13,6 @@ struct Drive9AudioSearchResult: Identifiable {
     let name: String
     let sizeBytes: Int64
     let score: Double?
-    let semanticText: String
 }
 
 enum SearchLanguage: String, CaseIterable, Identifiable {
@@ -172,22 +171,16 @@ final class Drive9DemoViewModel: NSObject, ObservableObject {
         await runBusy {
             self.setStatus("Searching \(audioPrefix) for \"\(query)\"...")
             let hits = try await self.client().grep(query: query, pathPrefix: audioPrefix, limit: 20)
-            var enriched: [Drive9AudioSearchResult] = []
-            for hit in hits {
-                let meta = try? await self.client().statMetadata(path: hit.path)
-                enriched.append(
-                    Drive9AudioSearchResult(
-                        path: hit.path,
-                        name: hit.name,
-                        sizeBytes: hit.sizeBytes,
-                        score: hit.score,
-                        semanticText: meta?.semanticText.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                    )
+            self.results = hits.map { hit in
+                Drive9AudioSearchResult(
+                    path: hit.path,
+                    name: hit.name,
+                    sizeBytes: hit.sizeBytes,
+                    score: hit.score
                 )
             }
-            self.results = enriched
             self.showResults = true
-            self.setStatus("Found \(enriched.count) recording\(enriched.count == 1 ? "" : "s") for \"\(query)\"")
+            self.setStatus("Found \(self.results.count) recording\(self.results.count == 1 ? "" : "s") for \"\(query)\"")
         }
     }
 
