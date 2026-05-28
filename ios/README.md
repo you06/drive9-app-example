@@ -43,8 +43,10 @@ The main screen has two workflows:
 The transcribed query is shown in an editable text field so you can fix any
 recognition mistakes before tapping Search Recordings.
 
-Search results open in a read-only list with name, path, size, and match score,
-plus a play button that downloads and plays the matching audio file.
+Search results open in a read-only list with name, path, the Drive9-extracted
+semantic summary, size, match score, and a play button that downloads and
+plays the matching audio file.
 
 Drive9 indexes uploaded recordings asynchronously on the backend, so a freshly
-uploaded clip becomes searchable after the server finishes processing it.
+uploaded clip becomes searchable - and gains its semantic summary - after the
+server finishes processing it.

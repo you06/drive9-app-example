@@ -5,11 +5,50 @@ struct ContentView: View {
 
     var body: some View {
         Group {
-            if model.isConnected {
-                MainDemoView(model: model)
-            } else {
+            if !model.isConnected {
                 ConnectionView(model: model)
+            } else if model.showResults {
+                ResultsView(model: model)
+            } else {
+                MainDemoView(model: model)
             }
+        }
+    }
+}
+
+private struct TopBar: View {
+    let title: String
+    let onBack: (() -> Void)?
+
+    init(title: String, onBack: (() -> Void)? = nil) {
+        self.title = title
+        self.onBack = onBack
+    }
+
+    var body: some View {
+        ZStack {
+            HStack {
+                if let onBack {
+                    Button(action: onBack) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 17, weight: .semibold))
+                            .padding(.horizontal, 4)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Back")
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+
+            Text(title)
+                .font(.headline)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 44)
+        .background(Color(.systemBackground))
+        .overlay(alignment: .bottom) {
+            Divider()
         }
     }
 }
@@ -32,7 +71,8 @@ private struct ConnectionView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        VStack(spacing: 0) {
+            TopBar(title: "Drive9")
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     CardSection(title: "Drive9") {
@@ -81,9 +121,8 @@ private struct ConnectionView: View {
                 .padding(.top, 12)
             }
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle("Drive9")
-            .navigationBarTitleDisplayMode(.inline)
         }
+        .background(Color(.systemBackground).ignoresSafeArea(edges: .bottom))
     }
 }
 
@@ -91,7 +130,8 @@ private struct MainDemoView: View {
     @ObservedObject var model: Drive9DemoViewModel
 
     var body: some View {
-        NavigationStack {
+        VStack(spacing: 0) {
+            TopBar(title: "Drive9 Audio")
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     if model.isRecording {
@@ -184,12 +224,8 @@ private struct MainDemoView: View {
                 .padding(.top, 12)
             }
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle("Drive9 Audio")
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationDestination(isPresented: $model.showResults) {
-                ResultsView(model: model)
-            }
         }
+        .background(Color(.systemBackground).ignoresSafeArea(edges: .bottom))
     }
 }
 
@@ -197,42 +233,52 @@ private struct ResultsView: View {
     @ObservedObject var model: Drive9DemoViewModel
 
     var body: some View {
-        List {
-            if model.results.isEmpty {
-                Text("No recordings found.")
-                    .foregroundStyle(.secondary)
+        VStack(spacing: 0) {
+            TopBar(title: "Results") {
+                model.showResults = false
             }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    if model.results.isEmpty {
+                        Text("No recordings found.")
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 24)
+                    }
 
-            ForEach(model.results) { result in
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(result.name.ifEmpty(result.path))
-                        .font(.headline)
+                    ForEach(model.results) { result in
+                        CardSection(title: result.name.ifEmpty(result.path)) {
+                            Text(result.path)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
 
-                    Text(result.path)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                            Text(result.semanticText.ifEmpty("No semantic summary yet."))
+                                .font(.body)
+                                .foregroundStyle(.primary)
+                                .fixedSize(horizontal: false, vertical: true)
 
-                    HStack {
-                        Text(ByteCountFormatter.string(fromByteCount: result.sizeBytes, countStyle: .file))
-                        if let score = result.score {
-                            Text("score \(score, specifier: "%.4f")")
+                            HStack {
+                                Text(ByteCountFormatter.string(fromByteCount: result.sizeBytes, countStyle: .file))
+                                if let score = result.score {
+                                    Text("score \(score, specifier: "%.4f")")
+                                }
+                            }
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                            Button("Play Audio") {
+                                Task { await model.play(result) }
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(model.isBusy)
                         }
                     }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                    Button("Play Audio") {
-                        Task { await model.play(result) }
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(model.isBusy)
                 }
-                .padding(.vertical, 4)
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 16)
             }
         }
-        .listStyle(.insetGrouped)
-        .navigationTitle("Results")
-        .navigationBarTitleDisplayMode(.inline)
+        .background(Color(.systemBackground).ignoresSafeArea(edges: .bottom))
     }
 }
 

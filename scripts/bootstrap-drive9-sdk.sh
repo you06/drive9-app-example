@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VENDOR="$ROOT/vendor"
 DRIVE9_DIR="${DRIVE9_REPO:-$VENDOR/drive9}"
-DRIVE9_REF="${DRIVE9_REF:-main}"
+DRIVE9_REF="${DRIVE9_REF:-feat/semantic-search-by-file-sdk}"
 
 mkdir -p "$VENDOR"
 
