@@ -50,3 +50,49 @@ plays the matching audio file.
 Drive9 indexes uploaded recordings asynchronously on the backend, so a freshly
 uploaded clip becomes searchable - and gains its semantic summary - after the
 server finishes processing it.
+
+## Manual
+
+### 1. Login with Drive9 API Key
+
+Run `cat ~/.drive9/config` in your drive9 host, and you'll see the following content.
+
+```json
+{
+  "server": "https://api.drive9.ai",
+  "current_context": "dev",
+  "contexts": {
+    "dev": {
+      "type": "owner",
+      "server": "https://api.drive9.ai",
+      "api_key":"dat9_...",
+      "expires_at": "..."
+    }
+  }
+}
+```
+
+Copy and paste the `api_key` into the application.
+
+![login](./assets/1-login.jpeg)
+
+### 2. Upload recording.
+
+**Upload the recording by following these steps:**
+
+1. Tap **"Record Upload Audio"** to start recording.
+2. Tap **"Stop Upload Recording"** to stop recording; the recording will be generated at this point.
+3. Tap **"Upload Saved Recording"** to upload the recording to Drive9.
+
+**Search for the recording by following these steps:**
+1. Tap **"Speak Search Query"** to start recording your search query.
+2. Tap **"Stop Speaking"** to end the recording.
+3. Tap **"Search Recordings"** to find the related recording from Drive9.
+
+![record](./assets/2-record.jpeg)
+
+### 3. Searching Result.
+
+This page will display all the results, and you can also replay the original audio here.
+
+![results](./assets/3-results.jpeg)
