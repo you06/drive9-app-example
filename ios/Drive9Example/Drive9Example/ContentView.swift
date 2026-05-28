@@ -16,7 +16,7 @@ struct ContentView: View {
     }
 }
 
-private struct TopBar: View {
+private struct TitleRow: View {
     let title: String
     let onBack: (() -> Void)?
 
@@ -26,51 +26,19 @@ private struct TopBar: View {
     }
 
     var body: some View {
-        ZStack {
-            HStack {
-                if let onBack {
-                    Button(action: onBack) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 15, weight: .semibold))
-                            .padding(.horizontal, 4)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Back")
+        HStack(spacing: 8) {
+            if let onBack {
+                Button(action: onBack) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 15, weight: .semibold))
                 }
-                Spacer()
+                .buttonStyle(.plain)
+                .accessibilityLabel("Back")
             }
-            .padding(.horizontal, 12)
-
             Text(title)
                 .font(.subheadline.weight(.semibold))
+            Spacer()
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: 32)
-        .background(Color(.systemBackground))
-        .overlay(alignment: .bottom) {
-            Divider()
-        }
-    }
-}
-
-private struct ScreenLayout<Content: View>: View {
-    let title: String
-    let onBack: (() -> Void)?
-    @ViewBuilder let content: () -> Content
-
-    init(title: String, onBack: (() -> Void)? = nil, @ViewBuilder content: @escaping () -> Content) {
-        self.title = title
-        self.onBack = onBack
-        self.content = content
-    }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            TopBar(title: title, onBack: onBack)
-            content()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(Color(.systemBackground))
     }
 }
 
@@ -92,57 +60,58 @@ private struct ConnectionView: View {
     }
 
     var body: some View {
-        ScreenLayout(title: "Drive9") {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    CardSection(title: "Drive9") {
-                        TextField("Server", text: $serverInput)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .keyboardType(.URL)
-                            .textContentType(.URL)
-                            .textFieldStyle(.roundedBorder)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                TitleRow(title: "Drive9")
 
-                        HStack {
-                            Group {
-                                if showKey {
-                                    TextField("API key", text: $keyInput)
-                                } else {
-                                    SecureField("API key", text: $keyInput)
-                                }
+                CardSection(title: "Drive9") {
+                    TextField("Server", text: $serverInput)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.URL)
+                        .textContentType(.URL)
+                        .textFieldStyle(.roundedBorder)
+
+                    HStack {
+                        Group {
+                            if showKey {
+                                TextField("API key", text: $keyInput)
+                            } else {
+                                SecureField("API key", text: $keyInput)
                             }
-                            .textContentType(.oneTimeCode)
-                            .keyboardType(.asciiCapable)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .textFieldStyle(.roundedBorder)
-
-                            Button(showKey ? "Hide" : "Show") {
-                                showKey.toggle()
-                            }
-                            .buttonStyle(.bordered)
                         }
+                        .textContentType(.oneTimeCode)
+                        .keyboardType(.asciiCapable)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .textFieldStyle(.roundedBorder)
 
-                        Button("Continue") {
-                            model.baseURL = serverInput
-                            model.apiKey = keyInput
-                            model.connect()
+                        Button(showKey ? "Hide" : "Show") {
+                            showKey.toggle()
                         }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(!canContinue)
+                        .buttonStyle(.bordered)
                     }
 
-                    Text(model.status)
-                        .font(.footnote)
-                        .foregroundStyle(model.isError ? .red : .secondary)
-                        .padding(.horizontal, 4)
+                    Button("Continue") {
+                        model.baseURL = serverInput
+                        model.apiKey = keyInput
+                        model.connect()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!canContinue)
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 12)
-                .padding(.bottom, 12)
+
+                Text(model.status)
+                    .font(.footnote)
+                    .foregroundStyle(model.isError ? .red : .secondary)
+                    .padding(.horizontal, 4)
             }
-            .scrollDismissesKeyboard(.interactively)
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 12)
         }
+        .scrollDismissesKeyboard(.interactively)
+        .background(Color(.systemBackground))
     }
 }
 
@@ -150,101 +119,102 @@ private struct MainDemoView: View {
     @ObservedObject var model: Drive9DemoViewModel
 
     var body: some View {
-        ScreenLayout(title: "Drive9 Audio") {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    if model.isRecording {
-                        CardSection(title: "Recording") {
-                            HStack(spacing: 12) {
-                                ProgressView()
-                                Text(model.recordingStatusText)
-                                    .foregroundStyle(.red)
-                                    .font(.footnote)
-                            }
-                        }
-                    }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                TitleRow(title: "Drive9 Audio")
 
-                    CardSection(title: "Upload Recording") {
-                        if let name = model.uploadRecordingName {
-                            Text(name)
+                if model.isRecording {
+                    CardSection(title: "Recording") {
+                        HStack(spacing: 12) {
+                            ProgressView()
+                            Text(model.recordingStatusText)
+                                .foregroundStyle(.red)
                                 .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        HStack {
-                            Button(model.isRecordingUpload ? "Stop Upload Recording" : "Record Upload Audio") {
-                                if model.isRecordingUpload {
-                                    model.stopUploadRecording()
-                                } else {
-                                    model.startUploadRecording()
-                                }
-                            }
-                            .buttonStyle(.bordered)
-                            .disabled(model.isSpeakingSearch || model.isBusy || model.isTranscribing)
-
-                            Button("Upload Saved Recording") {
-                                Task { await model.uploadRecording() }
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .disabled(!model.canUploadRecording)
                         }
                     }
+                }
 
-                    CardSection(title: "Search") {
-                        Picker("Language", selection: $model.searchLanguage) {
-                            ForEach(SearchLanguage.allCases) { language in
-                                Text(language.displayName).tag(language)
+                CardSection(title: "Upload Recording") {
+                    if let name = model.uploadRecordingName {
+                        Text(name)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    HStack {
+                        Button(model.isRecordingUpload ? "Stop Upload Recording" : "Record Upload Audio") {
+                            if model.isRecordingUpload {
+                                model.stopUploadRecording()
+                            } else {
+                                model.startUploadRecording()
                             }
                         }
-                        .pickerStyle(.segmented)
-                        .disabled(model.isSpeakingSearch || model.isTranscribing)
+                        .buttonStyle(.bordered)
+                        .disabled(model.isSpeakingSearch || model.isBusy || model.isTranscribing)
 
-                        HStack {
-                            Button(model.isSpeakingSearch ? "Stop Speaking" : "Speak Search Query") {
-                                if model.isSpeakingSearch {
-                                    model.stopSpeakingSearch()
-                                } else {
-                                    model.startSpeakingSearch()
-                                }
-                            }
-                            .buttonStyle(.bordered)
-                            .disabled(!model.canSpeakSearch && !model.isSpeakingSearch)
-
-                            if model.isTranscribing {
-                                ProgressView()
-                            }
-                        }
-
-                        TextField("Search query", text: $model.searchTranscript, axis: .vertical)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .lineLimit(1...3)
-                            .textFieldStyle(.roundedBorder)
-                            .disabled(model.isSpeakingSearch || model.isTranscribing)
-
-                        Button("Search Recordings") {
-                            Task { await model.searchByTranscript() }
+                        Button("Upload Saved Recording") {
+                            Task { await model.uploadRecording() }
                         }
                         .buttonStyle(.borderedProminent)
-                        .disabled(!model.canSearchByTranscript)
+                        .disabled(!model.canUploadRecording)
                     }
+                }
 
-                    HStack(spacing: 8) {
-                        if model.isBusy {
+                CardSection(title: "Search") {
+                    Picker("Language", selection: $model.searchLanguage) {
+                        ForEach(SearchLanguage.allCases) { language in
+                            Text(language.displayName).tag(language)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .disabled(model.isSpeakingSearch || model.isTranscribing)
+
+                    HStack {
+                        Button(model.isSpeakingSearch ? "Stop Speaking" : "Speak Search Query") {
+                            if model.isSpeakingSearch {
+                                model.stopSpeakingSearch()
+                            } else {
+                                model.startSpeakingSearch()
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(!model.canSpeakSearch && !model.isSpeakingSearch)
+
+                        if model.isTranscribing {
                             ProgressView()
                         }
-                        Text(model.status)
-                            .font(.footnote)
-                            .foregroundStyle(model.isError ? .red : .secondary)
                     }
-                    .padding(.horizontal, 4)
+
+                    TextField("Search query", text: $model.searchTranscript, axis: .vertical)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .lineLimit(1...3)
+                        .textFieldStyle(.roundedBorder)
+                        .disabled(model.isSpeakingSearch || model.isTranscribing)
+
+                    Button("Search Recordings") {
+                        Task { await model.searchByTranscript() }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!model.canSearchByTranscript)
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 12)
-                .padding(.bottom, 12)
+
+                HStack(spacing: 8) {
+                    if model.isBusy {
+                        ProgressView()
+                    }
+                    Text(model.status)
+                        .font(.footnote)
+                        .foregroundStyle(model.isError ? .red : .secondary)
+                }
+                .padding(.horizontal, 4)
             }
-            .scrollDismissesKeyboard(.interactively)
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 12)
         }
+        .scrollDismissesKeyboard(.interactively)
+        .background(Color(.systemBackground))
     }
 }
 
@@ -252,48 +222,49 @@ private struct ResultsView: View {
     @ObservedObject var model: Drive9DemoViewModel
 
     var body: some View {
-        ScreenLayout(title: "Results", onBack: { model.showResults = false }) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    if model.results.isEmpty {
-                        Text("No recordings found.")
-                            .foregroundStyle(.secondary)
-                            .padding(.top, 24)
-                    }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                TitleRow(title: "Results", onBack: { model.showResults = false })
 
-                    ForEach(model.results) { result in
-                        CardSection(title: result.name.ifEmpty(result.path)) {
-                            Text(result.path)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                if model.results.isEmpty {
+                    Text("No recordings found.")
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 8)
+                }
 
-                            Text(result.semanticText.ifEmpty("No semantic summary yet."))
-                                .font(.body)
-                                .foregroundStyle(.primary)
-                                .fixedSize(horizontal: false, vertical: true)
-
-                            HStack {
-                                Text(ByteCountFormatter.string(fromByteCount: result.sizeBytes, countStyle: .file))
-                                if let score = result.score {
-                                    Text("score \(score, specifier: "%.4f")")
-                                }
-                            }
+                ForEach(model.results) { result in
+                    CardSection(title: result.name.ifEmpty(result.path)) {
+                        Text(result.path)
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
-                            Button("Play Audio") {
-                                Task { await model.play(result) }
+                        Text(result.semanticText.ifEmpty("No semantic summary yet."))
+                            .font(.body)
+                            .foregroundStyle(.primary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        HStack {
+                            Text(ByteCountFormatter.string(fromByteCount: result.sizeBytes, countStyle: .file))
+                            if let score = result.score {
+                                Text("score \(score, specifier: "%.4f")")
                             }
-                            .buttonStyle(.bordered)
-                            .disabled(model.isBusy)
                         }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                        Button("Play Audio") {
+                            Task { await model.play(result) }
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(model.isBusy)
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 12)
-                .padding(.bottom, 12)
             }
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 12)
         }
+        .background(Color(.systemBackground))
     }
 }
 
