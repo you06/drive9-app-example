@@ -18,22 +18,20 @@ struct ContentView: View {
 
 private struct TopBar: View {
     let title: String
-    let topInset: CGFloat
     let onBack: (() -> Void)?
 
-    init(title: String, topInset: CGFloat, onBack: (() -> Void)? = nil) {
+    init(title: String, onBack: (() -> Void)? = nil) {
         self.title = title
-        self.topInset = topInset
         self.onBack = onBack
     }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
+        ZStack {
             HStack {
                 if let onBack {
                     Button(action: onBack) {
                         Image(systemName: "chevron.left")
-                            .font(.system(size: 17, weight: .semibold))
+                            .font(.system(size: 15, weight: .semibold))
                             .padding(.horizontal, 4)
                     }
                     .buttonStyle(.plain)
@@ -42,14 +40,12 @@ private struct TopBar: View {
                 Spacer()
             }
             .padding(.horizontal, 12)
-            .padding(.bottom, 10)
 
             Text(title)
-                .font(.headline)
-                .padding(.bottom, 10)
+                .font(.subheadline.weight(.semibold))
         }
         .frame(maxWidth: .infinity)
-        .frame(height: topInset + 36)
+        .frame(height: 32)
         .background(Color(.systemBackground))
         .overlay(alignment: .bottom) {
             Divider()
@@ -60,22 +56,20 @@ private struct TopBar: View {
 private struct ScreenLayout<Content: View>: View {
     let title: String
     let onBack: (() -> Void)?
-    @ViewBuilder let content: (CGFloat) -> Content
+    @ViewBuilder let content: () -> Content
 
-    init(title: String, onBack: (() -> Void)? = nil, @ViewBuilder content: @escaping (CGFloat) -> Content) {
+    init(title: String, onBack: (() -> Void)? = nil, @ViewBuilder content: @escaping () -> Content) {
         self.title = title
         self.onBack = onBack
         self.content = content
     }
 
     var body: some View {
-        GeometryReader { proxy in
-            VStack(spacing: 0) {
-                TopBar(title: title, topInset: proxy.safeAreaInsets.top, onBack: onBack)
-                content(proxy.safeAreaInsets.bottom)
-            }
+        VStack(spacing: 0) {
+            TopBar(title: title, onBack: onBack)
+            content()
         }
-        .ignoresSafeArea()
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color(.systemBackground))
     }
 }
@@ -98,7 +92,7 @@ private struct ConnectionView: View {
     }
 
     var body: some View {
-        ScreenLayout(title: "Drive9") { _ in
+        ScreenLayout(title: "Drive9") {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     CardSection(title: "Drive9") {
@@ -156,7 +150,7 @@ private struct MainDemoView: View {
     @ObservedObject var model: Drive9DemoViewModel
 
     var body: some View {
-        ScreenLayout(title: "Drive9 Audio") { _ in
+        ScreenLayout(title: "Drive9 Audio") {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     if model.isRecording {
@@ -258,7 +252,7 @@ private struct ResultsView: View {
     @ObservedObject var model: Drive9DemoViewModel
 
     var body: some View {
-        ScreenLayout(title: "Results", onBack: { model.showResults = false }) { _ in
+        ScreenLayout(title: "Results", onBack: { model.showResults = false }) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     if model.results.isEmpty {
