@@ -96,3 +96,11 @@ Copy and paste the `api_key` into the application.
 This page will display all the results, and you can also replay the original audio here.
 
 <img src="./assets/3-results.jpeg" alt="results" width="540" height="1174">
+
+### 4. (Optional) Check the files from Drive9
+
+```
+> drive9 fs ls :/mobile-demo/audio
+recording-1779939219.m4a
+recording-1779943239.m4a
+```
