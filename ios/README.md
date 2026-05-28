@@ -74,7 +74,7 @@ Run `cat ~/.drive9/config` in your drive9 host, and you'll see the following con
 
 Copy and paste the `api_key` into the application.
 
-![login](./assets/1-login.jpeg)
+<img src="./assets/1-login.jpeg" alt="login" width="540" height="1174">
 
 ### 2. Upload recording.
 
@@ -89,10 +89,10 @@ Copy and paste the `api_key` into the application.
 2. Tap **"Stop Speaking"** to end the recording.
 3. Tap **"Search Recordings"** to find the related recording from Drive9.
 
-![record](./assets/2-record.jpeg)
+<img src="./assets/2-record.jpeg" alt="record" width="540" height="1174">
 
 ### 3. Searching Result.
 
 This page will display all the results, and you can also replay the original audio here.
 
-![results](./assets/3-results.jpeg)
+<img src="./assets/3-results.jpeg" alt="results" width="540" height="1174">
