@@ -34,12 +34,18 @@ server is `https://api.drive9.ai`.
 The main screen has two workflows:
 
 - Record audio and upload it to `/mobile-demo/audio`.
-- Record an audio query and search `/mobile-demo/audio` with the Drive9
-  `searchByFile` helper from PR #469.
+- Pick a language (中文 / English / 日本語), speak a search query, and search
+  `/mobile-demo/audio` with the Drive9 `grep` helper. Transcription uses
+  Apple's `SFSpeechRecognizer` on-device when available, so the query audio
+  never leaves the phone and the search returns as soon as the recognizer
+  finishes.
+
+The transcribed query is shown in an editable text field so you can fix any
+recognition mistakes before tapping Search Recordings.
 
 Search results open in a read-only list. Each result shows the semantic summary
 Drive9 extracted for that recording and includes a play button that downloads
 and plays the matching audio file.
 
-Drive9 extracts semantic text asynchronously, so search may wait up to the SDK
-timeout for the query recording to become searchable.
+Drive9 still extracts semantic text asynchronously for uploaded recordings, so
+a freshly uploaded clip becomes searchable after the backend processes it.

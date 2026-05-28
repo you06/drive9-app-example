@@ -105,13 +105,13 @@ private struct MainDemoView: View {
                     HStack {
                         Button(model.isRecordingUpload ? "Stop Upload Recording" : "Record Upload Audio") {
                             if model.isRecordingUpload {
-                                model.stopRecording(.upload)
+                                model.stopUploadRecording()
                             } else {
-                                model.startRecording(.upload)
+                                model.startUploadRecording()
                             }
                         }
                         .buttonStyle(.bordered)
-                        .disabled(model.isRecordingSearch || model.isBusy)
+                        .disabled(model.isSpeakingSearch || model.isBusy || model.isTranscribing)
 
                         Button("Upload Saved Recording") {
                             Task { await model.uploadRecording() }
@@ -121,30 +121,42 @@ private struct MainDemoView: View {
                     }
                 }
 
-                Section("Search Recording") {
-                    if let name = model.searchRecordingName {
-                        Text(name)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
+                Section("Search") {
+                    Picker("Language", selection: $model.searchLanguage) {
+                        ForEach(SearchLanguage.allCases) { language in
+                            Text(language.displayName).tag(language)
+                        }
                     }
+                    .pickerStyle(.segmented)
+                    .disabled(model.isSpeakingSearch || model.isTranscribing)
 
                     HStack {
-                        Button(model.isRecordingSearch ? "Stop Search Recording" : "Record Search Query") {
-                            if model.isRecordingSearch {
-                                model.stopRecording(.search)
+                        Button(model.isSpeakingSearch ? "Stop Speaking" : "Speak Search Query") {
+                            if model.isSpeakingSearch {
+                                model.stopSpeakingSearch()
                             } else {
-                                model.startRecording(.search)
+                                model.startSpeakingSearch()
                             }
                         }
                         .buttonStyle(.bordered)
-                        .disabled(model.isRecordingUpload || model.isBusy)
+                        .disabled(!model.canSpeakSearch && !model.isSpeakingSearch)
 
-                        Button("Search With Saved Query") {
-                            Task { await model.searchRecording() }
+                        if model.isTranscribing {
+                            ProgressView()
                         }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(!model.canSearchRecording)
                     }
+
+                    TextField("Search query", text: $model.searchTranscript, axis: .vertical)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .lineLimit(1...3)
+                        .disabled(model.isSpeakingSearch || model.isTranscribing)
+
+                    Button("Search Recordings") {
+                        Task { await model.searchByTranscript() }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!model.canSearchByTranscript)
                 }
 
                 Section {

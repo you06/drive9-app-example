@@ -1,10 +1,10 @@
 import AVFoundation
 import Foundation
+import Speech
 import Drive9Mobile
 
 private let defaultServer = "https://api.drive9.ai"
 private let audioPrefix = "/mobile-demo/audio"
-private let queryTmpPrefix = "/mobile-demo/tmp-query"
 private let minimumRecordingBytes: UInt64 = 1024
 
 struct Drive9AudioSearchResult: Identifiable {
@@ -16,9 +16,28 @@ struct Drive9AudioSearchResult: Identifiable {
     let semanticText: String
 }
 
-enum RecordingPurpose {
-    case upload
-    case search
+enum SearchLanguage: String, CaseIterable, Identifiable {
+    case zh
+    case en
+    case ja
+
+    var id: String { rawValue }
+
+    var localeIdentifier: String {
+        switch self {
+        case .zh: return "zh-CN"
+        case .en: return "en-US"
+        case .ja: return "ja-JP"
+        }
+    }
+
+    var displayName: String {
+        switch self {
+        case .zh: return "中文"
+        case .en: return "English"
+        case .ja: return "日本語"
+        }
+    }
 }
 
 @MainActor
@@ -31,15 +50,17 @@ final class Drive9DemoViewModel: NSObject, ObservableObject {
     @Published var isBusy = false
     @Published var uploadRecordingURL: URL?
     @Published var uploadRecordingName: String?
-    @Published var searchRecordingURL: URL?
-    @Published var searchRecordingName: String?
     @Published var isRecordingUpload = false
-    @Published var isRecordingSearch = false
+    @Published var searchLanguage: SearchLanguage = .zh
+    @Published var searchTranscript: String = ""
+    @Published var isSpeakingSearch = false
+    @Published var isTranscribing = false
     @Published var results: [Drive9AudioSearchResult] = []
     @Published var showResults = false
 
     private var recorder: AVAudioRecorder?
     private var player: AVAudioPlayer?
+    private var searchRecordingURL: URL?
 
     var canConnect: Bool {
         !baseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -47,20 +68,26 @@ final class Drive9DemoViewModel: NSObject, ObservableObject {
     }
 
     var canUploadRecording: Bool {
-        isConnected && uploadRecordingURL != nil && !isRecordingUpload && !isRecordingSearch && !isBusy
+        isConnected && uploadRecordingURL != nil && !isRecordingUpload && !isSpeakingSearch && !isBusy && !isTranscribing
     }
 
-    var canSearchRecording: Bool {
-        isConnected && searchRecordingURL != nil && !isRecordingUpload && !isRecordingSearch && !isBusy
+    var canSpeakSearch: Bool {
+        isConnected && !isRecordingUpload && !isSpeakingSearch && !isBusy && !isTranscribing
+    }
+
+    var canSearchByTranscript: Bool {
+        isConnected
+            && !searchTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !isRecordingUpload && !isSpeakingSearch && !isBusy && !isTranscribing
     }
 
     var isRecording: Bool {
-        isRecordingUpload || isRecordingSearch
+        isRecordingUpload || isSpeakingSearch
     }
 
     var recordingStatusText: String {
         if isRecordingUpload { return "Recording upload audio... tap Stop Recording when finished." }
-        if isRecordingSearch { return "Recording search query... tap Stop Recording when finished." }
+        if isSpeakingSearch { return "Listening for search query (\(searchLanguage.displayName))... tap Stop Speaking when finished." }
         return ""
     }
 
@@ -73,32 +100,51 @@ final class Drive9DemoViewModel: NSObject, ObservableObject {
         setStatus("Connected to \(trimmed(baseURL))")
     }
 
-    func startRecording(_ purpose: RecordingPurpose) {
+    func startUploadRecording() {
         Task {
             do {
                 try await self.requestMicrophoneAccess()
-                try self.startRecorder(for: purpose)
+                try self.startUploadRecorder()
             } catch {
                 self.setError(error)
             }
         }
     }
 
-    func stopRecording(_ purpose: RecordingPurpose) {
+    func stopUploadRecording() {
         recorder?.stop()
         recorder = nil
-        switch purpose {
-        case .upload:
-            isRecordingUpload = false
-            if let url = uploadRecordingURL {
-                setRecordingReadyStatus(url, label: "Upload recording")
-            }
-        case .search:
-            isRecordingSearch = false
-            if let url = searchRecordingURL {
-                setRecordingReadyStatus(url, label: "Search recording")
+        isRecordingUpload = false
+        if let url = uploadRecordingURL {
+            setRecordingReadyStatus(url, label: "Upload recording")
+        }
+    }
+
+    func startSpeakingSearch() {
+        Task {
+            do {
+                try await self.requestMicrophoneAccess()
+                try await self.requestSpeechAccess()
+                try self.startSearchRecorder()
+            } catch {
+                self.setError(error)
             }
         }
+    }
+
+    func stopSpeakingSearch() {
+        recorder?.stop()
+        recorder = nil
+        isSpeakingSearch = false
+        guard let url = searchRecordingURL else { return }
+        do {
+            try validateRecordingFile(url)
+        } catch {
+            cleanupSearchRecording()
+            setError(error)
+            return
+        }
+        Task { await self.transcribeSearchRecording(url) }
     }
 
     func uploadRecording() async {
@@ -117,24 +163,15 @@ final class Drive9DemoViewModel: NSObject, ObservableObject {
         }
     }
 
-    func searchRecording() async {
-        guard let url = searchRecordingURL else { return }
-        do {
-            try validateRecordingFile(url)
-        } catch {
-            setError(error)
+    func searchByTranscript() async {
+        let query = searchTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else {
+            setErrorMessage("Search transcript is empty.")
             return
         }
         await runBusy {
-            self.setStatus("Searching \(audioPrefix) with saved query recording...")
-            let hits = try await self.client().searchByFile(
-                localPath: url.path,
-                tmpPrefix: queryTmpPrefix,
-                searchPrefix: audioPrefix,
-                limit: 20,
-                timeoutSeconds: 60,
-                pollIntervalSeconds: 1
-            )
+            self.setStatus("Searching \(audioPrefix) for \"\(query)\"...")
+            let hits = try await self.client().grep(query: query, pathPrefix: audioPrefix, limit: 20)
             var enriched: [Drive9AudioSearchResult] = []
             for hit in hits {
                 let meta = try? await self.client().statMetadata(path: hit.path)
@@ -150,7 +187,7 @@ final class Drive9DemoViewModel: NSObject, ObservableObject {
             }
             self.results = enriched
             self.showResults = true
-            self.setStatus("Found \(enriched.count) recording\(enriched.count == 1 ? "" : "s")")
+            self.setStatus("Found \(enriched.count) recording\(enriched.count == 1 ? "" : "s") for \"\(query)\"")
         }
     }
 
@@ -166,8 +203,23 @@ final class Drive9DemoViewModel: NSObject, ObservableObject {
         }
     }
 
-    private func startRecorder(for purpose: RecordingPurpose) throws {
-        if isRecordingUpload || isRecordingSearch {
+    private func startUploadRecorder() throws {
+        let url = try beginRecording()
+        uploadRecordingURL = url
+        uploadRecordingName = url.lastPathComponent
+        isRecordingUpload = true
+        setStatus("Recording upload audio...")
+    }
+
+    private func startSearchRecorder() throws {
+        let url = try beginRecording()
+        searchRecordingURL = url
+        isSpeakingSearch = true
+        setStatus("Listening for search query (\(searchLanguage.displayName))...")
+    }
+
+    private func beginRecording() throws -> URL {
+        if isRecordingUpload || isSpeakingSearch {
             throw Drive9DemoError.message("Stop the current recording first.")
         }
 
@@ -191,19 +243,7 @@ final class Drive9DemoViewModel: NSObject, ObservableObject {
             throw Drive9DemoError.message("Failed to start audio recorder.")
         }
         recorder = audioRecorder
-
-        switch purpose {
-        case .upload:
-            uploadRecordingURL = url
-            uploadRecordingName = name
-            isRecordingUpload = true
-            setStatus("Recording upload audio...")
-        case .search:
-            searchRecordingURL = url
-            searchRecordingName = name
-            isRecordingSearch = true
-            setStatus("Recording search query...")
-        }
+        return url
     }
 
     private func requestMicrophoneAccess() async throws {
@@ -216,6 +256,73 @@ final class Drive9DemoViewModel: NSObject, ObservableObject {
                 }
             }
         }
+    }
+
+    private func requestSpeechAccess() async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            SFSpeechRecognizer.requestAuthorization { status in
+                if status == .authorized {
+                    continuation.resume(returning: ())
+                } else {
+                    continuation.resume(throwing: Drive9DemoError.message("Speech recognition permission is required."))
+                }
+            }
+        }
+    }
+
+    private func transcribeSearchRecording(_ url: URL) async {
+        isTranscribing = true
+        let language = searchLanguage
+        setStatus("Transcribing search query in \(language.displayName)...")
+        let locale = Locale(identifier: language.localeIdentifier)
+        guard let recognizer = SFSpeechRecognizer(locale: locale) else {
+            isTranscribing = false
+            cleanupSearchRecording()
+            setErrorMessage("Speech recognizer is not available for \(language.displayName).")
+            return
+        }
+        guard recognizer.isAvailable else {
+            isTranscribing = false
+            cleanupSearchRecording()
+            setErrorMessage("Speech recognizer for \(language.displayName) is not available right now.")
+            return
+        }
+        let request = SFSpeechURLRecognitionRequest(url: url)
+        request.shouldReportPartialResults = false
+        if recognizer.supportsOnDeviceRecognition {
+            request.requiresOnDeviceRecognition = true
+        }
+        do {
+            let text = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<String, Error>) in
+                let state = TranscriptionContinuationState()
+                recognizer.recognitionTask(with: request) { result, error in
+                    if let error = error {
+                        state.finish(continuation: continuation, .failure(error))
+                        return
+                    }
+                    guard let result = result, result.isFinal else { return }
+                    state.finish(continuation: continuation, .success(result.bestTranscription.formattedString))
+                }
+            }
+            let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            searchTranscript = trimmedText
+            if trimmedText.isEmpty {
+                setErrorMessage("Could not transcribe the recording. Try speaking more clearly and retry.")
+            } else {
+                setStatus("Heard: \(trimmedText)")
+            }
+        } catch {
+            setError(error)
+        }
+        isTranscribing = false
+        cleanupSearchRecording()
+    }
+
+    private func cleanupSearchRecording() {
+        if let url = searchRecordingURL {
+            try? FileManager.default.removeItem(at: url)
+        }
+        searchRecordingURL = nil
     }
 
     private func validateRecordingFile(_ url: URL) throws {
@@ -284,6 +391,20 @@ enum Drive9DemoError: LocalizedError {
         case let .message(value):
             return value
         }
+    }
+}
+
+private final class TranscriptionContinuationState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var done = false
+
+    func finish(continuation: CheckedContinuation<String, Error>, _ outcome: Result<String, Error>) {
+        lock.lock()
+        let shouldResume = !done
+        done = true
+        lock.unlock()
+        guard shouldResume else { return }
+        continuation.resume(with: outcome)
     }
 }
 

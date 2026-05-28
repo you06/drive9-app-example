@@ -19,7 +19,9 @@
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Drive9 records audio so you can upload recordings and search by recorded queries.</string>
+	<string>Drive9 records audio so you can upload recordings and speak search queries.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Drive9 transcribes your spoken search query on-device to find matching recordings.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
